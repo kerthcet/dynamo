@@ -1,0 +1,35 @@
+ARG ARCH=amd64
+ARG ARCH_ALT=x86_64
+
+FROM python:3.11.9-slim
+
+# install git, pip, wget dependencies
+RUN apt-get update && apt-get install -y git python3-pip wget tmux && rm -rf /var/lib/apt/lists/*
+
+# Rust Setup
+# Rust environment setup
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=1.90.0
+
+# Define Rust target based on ARCH_ALT ARG
+ARG RUSTARCH=${ARCH_ALT}-unknown-linux-gnu
+
+# Install Rust
+RUN wget --tries=3 --waitretry=5 "https://static.rust-lang.org/rustup/archive/1.28.1/${RUSTARCH}/rustup-init" && \
+    chmod +x rustup-init && \ ./rustup-init -y --no-modify-path --profile minimal --default-toolchain $RUST_VERSION --default-host ${RUSTARCH} && \ rm rustup-init && \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME
+
+WORKDIR /app
+ENV DYNAMO_HOME=/app/dynamo
+ENV
+
+RUN git clone -b feat/hive --single-branch https://github.com/kerthcet/dynamo /app/dynamo
+
+RUN pip install matplotlib
+RUN pip install git+https://github.com/ai-dynamo/aiperf.git
+RUN pip install -e ./benchmarks
+
+RUN ./hive.sh
+CMD ["tmux", "attach-session", "-t", "serving"]
